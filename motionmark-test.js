@@ -78,7 +78,7 @@ function makePromiseInfo() {
 
 const wait = (seconds = 1) => new Promise(resolve => setTimeout(resolve, seconds * 1000));
 
-async function startBrowser({lowPower, metal, staged, forced, managed}) {
+async function startBrowser({lowPower, metal, staged, forced, managed, dynamicManaged}) {
   const browser = await puppeteer.launch({
     headless: false,
     executablePath,
@@ -93,6 +93,7 @@ async function startBrowser({lowPower, metal, staged, forced, managed}) {
       ...(staged && {ANGLE_USE_STAGING_BUFFERS: "1"}),
       ...(managed && {ANGLE_USE_MANAGED_BUFFERS: "1"}),
       ...(forced && {ANGLE_FORCE_SPECIAL_BUFFER_HANDLING: "1"}),
+      ...(dynamicManaged && {ANGLE_USE_DYNAMIC_MANAGED_BUFFERS: "1"}),
     },
   });
   return browser;
@@ -236,12 +237,13 @@ async function test(initialPort = 3000) {
 
     const tests = [];
     for (const [gpu, {lowPower}] of Object.entries(metalGPUs)) {
-      for (let i = 0; i < 8; ++i) {
+      for (let i = 0; i < 16; ++i) {
         const staged = !!(i & 1);
         const forced = !!(i & 2);
         const managed = !!(i & 4);
+        const dynamicManaged = !!(i * 8);
         const metal = true;
-        tests.push({staged, forced, managed, lowPower, metal});
+        tests.push({staged, forced, managed, lowPower, metal, dynamicManaged});
       }
     }
     for (const [gpu, {lowPower}] of Object.entries(glGPUs)) {
@@ -249,12 +251,12 @@ async function test(initialPort = 3000) {
     }
 
     for (const test of tests) {
-      const {staged, forced, managed} = test;
+      const {staged, forced, managed, dynamicManaged} = test;
       const browser = await startBrowser(test);
       const page = await loadPage(browser);
       const gpu = await getGPU(page);
 
-      const key = `${gpu.RENDERER}:${staged ? 'staged' : 'vk'}:${forced ? 'forced' : '(non-forced)'}:${managed ? 'managed' : 'shared'}`;
+      const key = `${gpu.RENDERER}:${staged ? 'staged' : 'vk'}:${forced ? 'forced' : '(non-forced)'}:${managed ? 'managed' : 'shared'}:${dynamicManaged ? 'dyn-managed' : 'dyn-shared'}`;
       console.log(`> ${key}`);
 
       const results = await runTests(page);

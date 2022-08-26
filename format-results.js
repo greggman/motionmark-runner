@@ -7,7 +7,7 @@ function getAPI(s) {
   } else if (s.includes("Metal")) {
     return "Metal";
   } else {
-    throw new Error(`unknonw api from :${s}`);
+    throw new Error(`unknown api from :${s}`);
   }
 }
 
@@ -50,6 +50,7 @@ function printTableForTests(gpu, data) {
   const methods = [''];
   const forces = [''];
   const shareds = [''];
+  const dynamicManaged = [''];
   const seps = [undefined];
   const table = [
     apis,
@@ -57,6 +58,7 @@ function printTableForTests(gpu, data) {
     methods,
     forces,
     shareds,
+    dynamicManaged,
     seps,
   ];
   // We could assume they are in the same order which they probably are but...
@@ -86,7 +88,7 @@ function printTableForTests(gpu, data) {
   const suite = 'MotionMark';
   for (const [gpuKey, gpuData] of Object.entries(data)) {
     const columnNdx = getColumnByGPUKey(gpuKey);
-    const {staged, forced, managed, lowPower, metal} = gpuData;
+    const {staged, forced, managed, dynamicManaged, lowPower, metal} = gpuData;
     const api = getAPI(gpuKey);
 
     for (const [testName, {score}] of Object.entries(gpuData.results.testsResults[suite])) {
@@ -97,6 +99,7 @@ function printTableForTests(gpu, data) {
       methods[columnNdx] = includeOption(gpu, staged ? 'staged' : 'vk');
       forces[columnNdx] = includeOption(gpu, forced ? 'forced' : '(non-forced)');
       shareds[columnNdx] = includeOption(gpu, managed ? 'managed' : 'shared');
+      dynamicManaged[columnNdx] = includeOptions(gpu, dynamicManaged ? 'dyn-managed' : 'dyn-shared');
       seps[columnNdx] = undefined;
     }
   }
