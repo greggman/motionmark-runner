@@ -25,26 +25,23 @@ function getGPU(s) {
   }
 }
 
-const re = /(.*?)(\w+):([a-z_()-]+):(\w+)$/i;
+// TODO: This is dumb, the data is separated when generated
+// so should store already separated.
+const keyParseRE = /(.*?)(\w+):([a-z_()-]+):(\w+)$/i;
 
 function separateTestsByGPU(data) {
   const gpus = {};
-  for (const [test, testData] of Object.entries(data)) {
-    for (const [name, results] of Object.entries(testData)) {
-      const m = re.exec(name);
-      if (!m) {
-        throw Error(`could not parse "${name}"`);
-      }
-      const [, vendor, method, force, shared] = m;
-      const gpu = getGPU(vendor);
-      const gpuTests = gpus[gpu] || [];
-      gpus[gpu] = gpuTests;
-      const tests = gpuTests[test] || {};
-      gpuTests[test] = tests;
-      tests[name] = results;
-    }
+  for (const [key, testData] of Object.entries(data)) {
+    const gpuKey = getGPU(key);
+    const gpu = gpus[gpuKey] || {};
+    gpus[gpuKey] = gpu;
+    gpu[key] = testData;
   }
   return gpus;
+}
+
+function includeOption(gpu, option) {
+  return gpu === 'OpenGL' ? '' : option;
 }
 
 function printTableForTests(gpu, data) {
@@ -62,29 +59,46 @@ function printTableForTests(gpu, data) {
     shareds,
     seps,
   ];
-  // gather data into rows of elements
-  let firstRow = true;
-  for (const [test, testData] of Object.entries(data)) {
-    const row = [test];
-    table.push(row);
-    for (const [name, results] of Object.entries(testData)) {
-      const m = re.exec(name);
-      if (!m) {
-        throw Error(`could not parse "${name}"`);
-      }
-      const [, vendor, method, force, shared] = m;
-      const api = getAPI(vendor);
-      if (firstRow) {
-        apis.push(api);
-        gpus.push(gpu);
-        methods.push(method);
-        forces.push(force);
-        shareds.push(shared);
-        seps.push(undefined);
-      }
-      row.push(results.score | 0);
+  // We could assume they are in the same order which they probably are but...
+  const keyToColumnIndex = new Map([['test', 0]]);
+  const keyToRow = new Map();
+
+  const getColumnByGPUKey = (key) => {
+    const ndx = keyToColumnIndex.get(key);
+    if (ndx !== undefined) {
+      return ndx;
     }
-    firstRow = false;
+    const newNdx = keyToColumnIndex.size;
+    keyToColumnIndex.set(key, newNdx);
+    return newNdx;
+  }
+
+  const getRowByTestName = (testName) => {
+    let row = keyToRow.get(testName);
+    if (row === undefined) {
+      row = [testName];
+      table.push(row);
+      keyToRow.set(testName, row);
+    }
+    return row;
+  }
+
+  const suite = 'MotionMark';
+  for (const [gpuKey, gpuData] of Object.entries(data)) {
+    const columnNdx = getColumnByGPUKey(gpuKey);
+    const {staged, forced, managed, lowPower, metal} = gpuData;
+    const api = getAPI(gpuKey);
+
+    for (const [testName, {score}] of Object.entries(gpuData.results.testsResults[suite])) {
+      const row = getRowByTestName(testName);
+      row[columnNdx] = score | 0;
+      apis[columnNdx] = api;
+      gpus[columnNdx] = gpu;
+      methods[columnNdx] = includeOption(gpu, staged ? 'staged' : 'vk');
+      forces[columnNdx] = includeOption(gpu, forced ? 'forced' : '(non-forced)');
+      shareds[columnNdx] = includeOption(gpu, managed ? 'managed' : 'shared');
+      seps[columnNdx] = undefined;
+    }
   }
 
   // find the width of each column

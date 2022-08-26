@@ -78,7 +78,7 @@ function makePromiseInfo() {
 
 const wait = (seconds = 1) => new Promise(resolve => setTimeout(resolve, seconds * 1000));
 
-async function startBrowser(staged, forced, managed, lowPower, metal) {
+async function startBrowser({lowPower, metal, staged, forced, managed}) {
   const browser = await puppeteer.launch({
     headless: false,
     executablePath,
@@ -121,7 +121,7 @@ async function loadPage(browser) {
     waitingPromiseInfo.resolve();
   });
 
-  const url = `https://browserbench.org/MotionMark1.2/developer.html${args.test ? '?test-interval=5': ''}`;
+  const url = `https://browserbench.org/MotionMark1.2/developer.html`;
   waitingPromiseInfo = makePromiseInfo();
   await page.goto(url);
   await waitingPromiseInfo.promise;
@@ -165,6 +165,19 @@ async function runTests(page) {
     return numTestsSelected;
   }
 
+  async function applyTestSettings(settings) {
+    await page.evaluate(`
+    (function applySettings(settings) {
+      for (const [id, value] of Object.entries(settings)) {
+        const elem = document.getElementById(id);
+        if (elem) {
+          elem.value = value;
+        }
+      }
+    })(${JSON.stringify(settings)});
+    `);
+  }
+
   async function getResults() {
     for(let i = 0; ; ++i) {
       const results = await page.evaluate(`
@@ -183,6 +196,9 @@ async function runTests(page) {
   if (numTests <= 0) {
     throw new Error('no tests selected');
   }
+  if (args.test) {
+    await applyTestSettings({'test-interval': 5});
+  }
   await page.evaluate('window.benchmarkController.startBenchmark()');
   verboseLog(`Running ${numTests} tests.`);
   const results = await getResults();
@@ -190,51 +206,62 @@ async function runTests(page) {
   return results;
 }
 
+async function getGPUs({metal}) {
+  const gpus = new Map();
+
+  for (let i = 0; i < 2; ++i) {
+    const lowPower = !!i;
+    const browser = await startBrowser({
+      metal,
+      lowPower, 
+    });
+    const page = await loadPage(browser);
+    const gpu = await getGPU(page);
+    gpus.set(gpu.RENDERER, {lowPower, metal});
+    await browser.close();
+  }
+  return Object.fromEntries(gpus.entries());
+}
+
 async function test(initialPort = 3000) {
   try {
     // const {server, port} = await startServer(initialPort);
     const allResults = {}
-    const gpuKeys = new Set();
+
+    console.log('Enumerating GPUs by backing...');
+    const metalGPUs = await getGPUs({metal: true});
+    const glGPUs = await getGPUs({metal: false});
+
+    console.log('Running tests...');
 
     const tests = [];
-    for (let i = 0; i < 16; ++i) {
-      const staged = !!(i & 1);
-      const forced = !!(i & 2);
-      const managed = !!(i & 4);
-      const lowPower = !!(i & 8);
-      const metal = true;
-      tests.push({staged, forced, managed, lowPower, metal});
+    for (const [gpu, {lowPower}] of Object.entries(metalGPUs)) {
+      for (let i = 0; i < 8; ++i) {
+        const staged = !!(i & 1);
+        const forced = !!(i & 2);
+        const managed = !!(i & 4);
+        const metal = true;
+        tests.push({staged, forced, managed, lowPower, metal});
+      }
     }
-    // add GL low_power, high_performance
-    tests.push({staged: false, forced: false, managed: false, lowPower: false, metal: false});
-    tests.push({staged: false, forced: false, managed: false, lowPower: true, metal: false});
+    for (const [gpu, {lowPower}] of Object.entries(glGPUs)) {
+      tests.push({lowPower, metal: false});
+    }
 
     for (const test of tests) {
-      const {staged, forced, managed, lowPower, metal} = test;
-
-      const browser = await startBrowser(staged, forced, managed, lowPower, metal);
+      const {staged, forced, managed} = test;
+      const browser = await startBrowser(test);
       const page = await loadPage(browser);
       const gpu = await getGPU(page);
 
-      const key = `${gpu.RENDERER}${staged ? 'staged' : 'vk'}:${forced ? 'forced' : '(non-forced)'}:${managed ? 'managed' : 'shared'}`;
-
-      // skip if we've seen this before (if low-power == high-performance)
-      // TODO: should check this separately since as is it will launch the browser 8 times
-      if (gpuKeys.has(key)) {
-        continue;
-      }
-      gpuKeys.add(key);
+      const key = `${gpu.RENDERER}:${staged ? 'staged' : 'vk'}:${forced ? 'forced' : '(non-forced)'}:${managed ? 'managed' : 'shared'}`;
       console.log(`> ${key}`);
 
       const results = await runTests(page);
-      for (const [suite, tests] of Object.entries(results.testsResults)) {
-        for (const [test, testResults] of Object.entries(tests)) {
-          const byGPUResults = allResults[test] || {}
-          allResults[test] = byGPUResults;
-          const {score, scoreLowerBound, scoreUpperBound} = testResults;
-          byGPUResults[key] = {score, scoreLowerBound, scoreUpperBound};
-        }
-      }
+      allResults[key] = {
+        ...test,
+        results,
+      };
 
       await browser.close();
 

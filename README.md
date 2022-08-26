@@ -27,9 +27,46 @@ caffeinate -disu node motionmark-test.js --chromium=/Users/gman/src/chromium/src
 
 `caffeinate` is a native MacOS command that keeps your computer from sleeping and the display from going off.
 
+note: when I ran these I followed these step
+
+1. Disconnect from external monitors
+2. Reboot
+3. Quit all other apps (Chrome auto launches on my machine so quit that)
+4. Use Activity Monitor to wait for all processes to use less than 10% cpu. This can take 2 or 3 minutes as MRT and other security related stuff run
+5. run the command above.
+6. Move the terminal window to the right so it doesn't cover Chromium (voodoo)
+
 ## Show results
 
 ```sh
 node format-results.js <json-file>
 ```
 
+## File Format
+
+```
+{
+  // for each gpu:options
+  "<gpu-option-key>": {  // gl.VENDOR:options
+    staged: bool,
+    forced: bool,
+    managed: bool,
+    lowPower: bool,
+    metal: bool,
+    results: {
+      testsResults: {
+        // for each suite
+        "MotionMark": {   // name of suite
+          // for each test
+          "Multiply": {   // name of test
+            ...
+            score: num,
+            scoreLowerBound: num,
+            scoreUpperBound: num,
+          },
+        },
+      },
+    },
+  },
+}
+```
