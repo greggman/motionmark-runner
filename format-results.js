@@ -51,6 +51,7 @@ function printTableForTests(gpu, data) {
   const forces = [''];
   const shareds = [''];
   const dynamicManaged = [''];
+  const stagedManaged = [''];
   const seps = [undefined];
   const table = [
     apis,
@@ -59,6 +60,7 @@ function printTableForTests(gpu, data) {
     forces,
     shareds,
     dynamicManaged,
+    stagedManaged,
     seps,
   ];
   // We could assume they are in the same order which they probably are but...
@@ -88,7 +90,7 @@ function printTableForTests(gpu, data) {
   const suite = 'MotionMark';
   for (const [gpuKey, gpuData] of Object.entries(data)) {
     const columnNdx = getColumnByGPUKey(gpuKey);
-    const {staged, forced, managed, dynamicManaged, lowPower, metal} = gpuData;
+    const {staged, forced, managed, dynamicManaged, managedStaging, lowPower, metal} = gpuData;
     const api = getAPI(gpuKey);
 
     for (const [testName, {score}] of Object.entries(gpuData.results.testsResults[suite])) {
@@ -100,6 +102,7 @@ function printTableForTests(gpu, data) {
       forces[columnNdx] = includeOption(gpu, forced ? 'forced' : '(non-forced)');
       shareds[columnNdx] = includeOption(gpu, managed ? 'managed' : 'shared');
       dynamicManaged[columnNdx] = includeOptions(gpu, dynamicManaged ? 'dyn-managed' : 'dyn-shared');
+      stagedManages[columnNdx] = includeOptions(gpu, managedStaging ? 'st-managed' : 'st-shared');
       seps[columnNdx] = undefined;
     }
   }

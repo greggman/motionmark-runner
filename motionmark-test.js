@@ -78,7 +78,7 @@ function makePromiseInfo() {
 
 const wait = (seconds = 1) => new Promise(resolve => setTimeout(resolve, seconds * 1000));
 
-async function startBrowser({lowPower, metal, staged, forced, managed, dynamicManaged}) {
+async function startBrowser({lowPower, metal, staged, forced, managed, dynamicManaged, managedStaging}) {
   const browser = await puppeteer.launch({
     headless: false,
     executablePath,
@@ -94,6 +94,7 @@ async function startBrowser({lowPower, metal, staged, forced, managed, dynamicMa
       ...(managed && {ANGLE_USE_MANAGED_BUFFERS: "1"}),
       ...(forced && {ANGLE_FORCE_SPECIAL_BUFFER_HANDLING: "1"}),
       ...(dynamicManaged && {ANGLE_USE_DYNAMIC_MANAGED_BUFFERS: "1"}),
+      ...(managedStaging && {ANGLE_USE_MANAGED_STAGING_BUFFERS: "1"}),
     },
   });
   return browser;
@@ -243,7 +244,10 @@ async function test(initialPort = 3000) {
         const managed = !!(i & 4);
         const dynamicManaged = !!(i * 8);
         const metal = true;
-        tests.push({staged, forced, managed, lowPower, metal, dynamicManaged});
+        tests.push({staged, forced, managed, lowPower, metal, dynamicManaged, managedStaging: false});
+        if (staged) {
+          tests.push({staged, forced, managed, lowPower, metal, dynamicManaged, managedStaging: true});
+        }
       }
     }
     for (const [gpu, {lowPower}] of Object.entries(glGPUs)) {
@@ -251,12 +255,12 @@ async function test(initialPort = 3000) {
     }
 
     for (const test of tests) {
-      const {staged, forced, managed, dynamicManaged} = test;
+      const {staged, forced, managed, dynamicManaged, managedStaging} = test;
       const browser = await startBrowser(test);
       const page = await loadPage(browser);
       const gpu = await getGPU(page);
 
-      const key = `${gpu.RENDERER}:${staged ? 'staged' : 'vk'}:${forced ? 'forced' : '(non-forced)'}:${managed ? 'managed' : 'shared'}:${dynamicManaged ? 'dyn-managed' : 'dyn-shared'}`;
+      const key = `${gpu.RENDERER}:${staged ? 'staged' : 'vk'}:${forced ? 'forced' : '(non-forced)'}:${managed ? 'managed' : 'shared'}:${dynamicManaged ? 'dyn-managed' : 'dyn-shared'}:${managedStaging ? 'st-managed' : 'st-shared'}`;
       console.log(`> ${key}`);
 
       const results = await runTests(page);
