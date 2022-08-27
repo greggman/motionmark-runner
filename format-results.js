@@ -45,23 +45,23 @@ function includeOption(gpu, option) {
 }
 
 function printTableForTests(gpu, data) {
-  const apis = [''];
-  const gpus = [''];
-  const methods = [''];
-  const forces = [''];
-  const shareds = [''];
-  const dynamicManaged = [''];
-  const stagedManaged = [''];
-  const seps = [undefined];
+  const apiRow = [''];
+  const gpuRow = [''];
+  const methodRow = [''];
+  const forceRow = [''];
+  const sharedRow = [''];
+  const dynamicManagedRow = [''];
+  const stagedManagedRow = [''];
+  const separatorRow = [undefined];
   const table = [
-    apis,
-    gpus,
-    methods,
-    forces,
-    shareds,
-    dynamicManaged,
-    stagedManaged,
-    seps,
+    apiRow,
+    gpuRow,
+    methodRow,
+    forceRow,
+    sharedRow,
+    dynamicManagedRow,
+    stagedManagedRow,
+    separatorRow,
   ];
   // We could assume they are in the same order which they probably are but...
   const keyToColumnIndex = new Map([['test', 0]]);
@@ -96,14 +96,14 @@ function printTableForTests(gpu, data) {
     for (const [testName, {score}] of Object.entries(gpuData.results.testsResults[suite])) {
       const row = getRowByTestName(testName);
       row[columnNdx] = score | 0;
-      apis[columnNdx] = api;
-      gpus[columnNdx] = gpu;
-      methods[columnNdx] = includeOption(gpu, staged ? 'staged' : 'vk');
-      forces[columnNdx] = includeOption(gpu, forced ? 'forced' : '(non-forced)');
-      shareds[columnNdx] = includeOption(gpu, managed ? 'managed' : 'shared');
-      dynamicManaged[columnNdx] = includeOptions(gpu, dynamicManaged ? 'dyn-managed' : 'dyn-shared');
-      stagedManages[columnNdx] = includeOptions(gpu, managedStaging ? 'st-managed' : 'st-shared');
-      seps[columnNdx] = undefined;
+      apiRow[columnNdx] = api;
+      gpuRow[columnNdx] = gpu;
+      methodRow[columnNdx] = includeOption(gpu, staged ? 'staged' : 'vk');
+      forceRow[columnNdx] = includeOption(gpu, forced ? 'forced' : '(non-forced)');
+      sharedRow[columnNdx] = includeOption(gpu, managed ? 'managed' : 'shared');
+      dynamicManagedRow[columnNdx] = includeOption(gpu, dynamicManaged ? 'dyn-managed' : 'dyn-shared');
+      stagedManagedRow[columnNdx] = staged ? includeOption(gpu, managedStaging ? 'st-managed' : 'st-shared') : '';
+      separatorRow[columnNdx] = undefined;
     }
   }
 
