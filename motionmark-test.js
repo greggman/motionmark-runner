@@ -17,7 +17,7 @@ const optionSpec = {
     { option: 'help', alias: 'h',     type: 'Boolean',  description: 'displays help' },
     { option: 'port', alias: 'p',     type: 'Int',      description: 'port', default: '3000' },
     { option: 'chromium',             type: 'String',   description: 'path to Chromium.app/Chrome.app', required: true},
-    { option: 'outfile',              type: 'String',   description: 'JSON file to save results to', required: true},
+    { option: 'outfile',              type: 'String',   description: 'file to save results to', required: true},
     { option: 'test',                 type: 'Boolean',  description: 'Just run one test (for testing this script)'},
     { option: 'verbose', alias: 'v',  type: 'Boolean',  description: 'verbose'},
   ],

@@ -1,5 +1,38 @@
 
 const fs = require('fs');
+const makeOptions = require('optionator');
+
+const optionSpec = {
+  options: [
+    { option: 'help', alias: 'h',     type: 'Boolean',  description: 'displays help' },
+    { option: 'format',               type: 'String',   description: 'format to save', enum: ['text', 'csv'], default: 'text'},
+  ],
+  prepend: `Usage: node motionmark-test.js [options]`,
+  helpStyle: {
+    typeSeparator: '=',
+    descriptionSeparator: ' : ',
+    initialIndent: 4,
+  },
+};
+/* eslint-enable object-curly-newline */
+const optionator = makeOptions(optionSpec);
+
+let args;
+try {
+  args = optionator.parse(process.argv);
+} catch (e) {
+  console.error(e.message);
+  printHelp();
+}
+
+function printHelp() {
+  console.info(optionator.generateHelp());
+  process.exit(1);  // eslint-disable-line
+}
+
+if (args.help) {
+  printHelp();
+}
 
 function getAPI(s) {
   if (s.includes("OpenGL")) {
@@ -107,6 +140,10 @@ function printTableForTests(gpu, data) {
     }
   }
 
+  return table;
+}
+
+function writeAsText(table) {
   // find the width of each column
   const columnWidths = [];
   for (const row of table) {
@@ -129,8 +166,52 @@ function printTableForTests(gpu, data) {
   console.log('\n')
 }
 
-const data = JSON.parse(fs.readFileSync(process.argv[2], {encoding: 'utf-8'}));
+const escapeRE = /[",\n\r ]/
+function csvEscape(s) {
+  const needQuotes = escapeRE.test(s);
+  return needQuotes ? `"${s}"` : s;
+}
+
+function writeAsCSV(table) {
+  // find separator row
+  const headingRows = [];
+  const dataRows = [];
+  let dst = headingRows;
+  for (const row of table) {
+    if (row[0] === undefined) {
+      dst = dataRows;
+      continue;
+    } else {
+      dst.push(row);
+    }
+  }
+
+  const headingsParts = new Array(headingRows[0].length).fill(0).map(_ => []);
+  for (const row of headingRows) {
+    for (let col = 0; col < row.length; ++col) {
+      headingsParts[col].push(row[col]);
+    }
+  }
+  const headers = headingsParts.map(h => h.join('\n'));
+  dataRows.unshift(headers);
+  const strRows = [];
+  for (const row of dataRows) {
+    strRows.push(row.map(v => csvEscape(v)).join(','));
+  }
+  console.log(strRows.join('\r\n'));
+}
+
+const data = JSON.parse(fs.readFileSync(args._[0], {encoding: 'utf-8'}));
 const gpus = separateTestsByGPU(data);
 for (const [gpu, data] of Object.entries(gpus)) {
-  printTableForTests(gpu, data);
+  const table = printTableForTests(gpu, data);
+
+  switch (args.format) {
+    case 'text':
+      writeAsText(table);
+      break;
+    case 'csv':
+      writeAsCSV(table);
+      break;
+  }
 }

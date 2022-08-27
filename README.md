@@ -42,6 +42,12 @@ note: when I ran these I followed these step
 node format-results.js <json-file>
 ```
 
+You can also output to csv
+
+```sh
+node format-results.js --format=csv > somefile.csv
+```
+
 ## File Format
 
 ```
