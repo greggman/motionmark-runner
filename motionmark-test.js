@@ -18,7 +18,9 @@ const optionSpec = {
     { option: 'port', alias: 'p',     type: 'Int',      description: 'port', default: '3000' },
     { option: 'chromium',             type: 'String',   description: 'path to Chromium.app/Chrome.app', required: true},
     { option: 'outfile',              type: 'String',   description: 'file to save results to', required: true},
-    { option: 'test',                 type: 'Boolean',  description: 'Just run one test (for testing this script)'},
+    { option: 'enumGPUs',             type: 'Boolean',  description: 'enumerate GPUs', default: 'true'},
+    { option: 'testSuite',            type: 'String',   description: 'test suite to run', default: 'MotionMark'},
+    { option: 'testNames',            type: 'String',   description: 'Regex of test names to run'},
     { option: 'verbose', alias: 'v',  type: 'Boolean',  description: 'verbose'},
   ],
   prepend: `Usage: node motionmark-test.js [options]`,
@@ -90,11 +92,11 @@ async function startBrowser({lowPower, metal, staged, forced, managed, dynamicMa
       lowPower ? '--force_low_power_gpu' : '--force_high_performance_gpu',
     ],
     env: {
-      ...(staged && {ANGLE_USE_STAGING_BUFFERS: "1"}),
-      ...(managed && {ANGLE_USE_MANAGED_BUFFERS: "1"}),
-      ...(forced && {ANGLE_FORCE_SPECIAL_BUFFER_HANDLING: "1"}),
-      ...(dynamicManaged && {ANGLE_USE_DYNAMIC_MANAGED_BUFFERS: "1"}),
-      ...(managedStaging && {ANGLE_USE_MANAGED_STAGING_BUFFERS: "1"}),
+      //...(staged && {ANGLE_USE_STAGING_BUFFERS: "1"}),
+      //...(managed && {ANGLE_USE_MANAGED_BUFFERS: "1"}),
+      //...(forced && {ANGLE_FORCE_SPECIAL_BUFFER_HANDLING: "1"}),
+      //...(dynamicManaged && {ANGLE_USE_DYNAMIC_MANAGED_BUFFERS: "1"}),
+      //...(managedStaging && {ANGLE_USE_MANAGED_STAGING_BUFFERS: "1"}),
     },
   });
   return browser;
@@ -145,25 +147,25 @@ async function getGPU(page) {
 }
 
 async function runTests(page) {
-  async function selectTestSuite(suite = 'MotionMark') {
-   const numTestsSelected = await page.evaluate(`
-    (function Select(benchmark) {
-      const list = document.querySelectorAll('.tree > li');
-      let counter = 0;
-      for (const row of list) {
-        const name = row.querySelector('label.tree-label').textContent;
-        const checked = name.trim() === benchmark;
-        const labels = row.querySelectorAll('input[type=checkbox]');
-        for (const label of labels) {
-          ${args.test ? 'if (counter < 3)' : ''}
-          label.checked = checked;
-          if (checked) { ++counter; }
-        }
-      }
-      return counter - 2;  // Each suite has two extra checkboxes. *shrug*
-    })("${suite}");
-    `
-    );
+  async function selectTestSuite(suite, testNames) {
+    const code = `
+     (function Select(benchmark, testNames) {
+       const list = document.querySelectorAll('.tree > li');
+       let counter = 0;
+       for (const row of list) {
+         const name = row.querySelector('label.tree-label').textContent;
+         const checked = name.trim() === benchmark;
+         const labels = row.querySelectorAll('li ul input[type=checkbox]');
+         for (const label of labels) {
+           const testChecked = checked && (testNames ? testNames.test(label.parentElement.textContent) : true);
+           label.checked = testChecked;
+           if (testChecked) { ++counter; }
+         }
+       }
+       return counter;
+     })("${suite}", ${testNames ? `/${testNames}/` : ''});
+     `;
+    const numTestsSelected = await page.evaluate(code);
     return numTestsSelected;
   }
 
@@ -194,7 +196,7 @@ async function runTests(page) {
     }
   }
 
-  const numTests = await selectTestSuite();
+  const numTests = await selectTestSuite(args.testSuite, args.testNames);
   if (numTests <= 0) {
     throw new Error('no tests selected');
   }
@@ -208,10 +210,11 @@ async function runTests(page) {
   return results;
 }
 
-async function getGPUs({metal}) {
+async function getGPUs({metal}, enumGPUs) {
   const gpus = new Map();
 
-  for (let i = 0; i < 2; ++i) {
+  const numGPUs = enumGPUs ? 2 : 1;
+  for (let i = 0; i < numGPUs; ++i) {
     const lowPower = !!i;
     const browser = await startBrowser({
       metal,
@@ -231,14 +234,14 @@ async function test(initialPort = 3000) {
     const allResults = {}
 
     console.log('Enumerating GPUs by backing...');
-    const metalGPUs = await getGPUs({metal: true});
-    const glGPUs = await getGPUs({metal: false});
+    const metalGPUs = await getGPUs({metal: true}, args.enumGPUs);
+    const glGPUs = await getGPUs({metal: false}, args.enumGPUs);
 
     console.log('Running tests...');
 
     const tests = [];
     for (const [gpu, {lowPower}] of Object.entries(metalGPUs)) {
-      for (let i = 0; i < 16; ++i) {
+      for (let i = 0; i < 1; ++i) {
         const staged = !!(i & 1);
         const forced = !!(i & 2);
         const managed = !!(i & 4);

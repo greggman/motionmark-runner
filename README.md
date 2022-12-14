@@ -36,6 +36,14 @@ note: when I ran these I followed these step
 5. run the command above.
 6. Move the terminal window to the right so it doesn't cover Chromium (voodoo)
 
+## Options
+
+* `--enumGPUs=false` makes it just check 1 GPU each for OpenGL/Metal 
+  vs 2 each (low-power, high-performance)
+* `--tesSuite=<name>` lets you pick a suite. It defaults to 'MotionMark'
+* `--testName=<regex>` lets you choose individual tests. For example 
+  `--testName=Images` will run just the images test.
+
 ## Show results
 
 ```sh
